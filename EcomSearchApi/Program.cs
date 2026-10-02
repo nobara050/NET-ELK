@@ -26,6 +26,7 @@ builder.Services.AddSingleton<ElasticIndexManager>();
 builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<ISearchService, SearchService>();
 builder.Services.AddScoped<IResetService, ResetService>();
+builder.Services.AddScoped<IDiagnosticsService, DiagnosticsService>();
 
 // Cấu hình Controllers & Swagger UI
 builder.Services.AddControllers();
