@@ -1,3 +1,4 @@
+using EcomSearchApi.Models;
 using EcomSearchApi.Repositories;
 
 namespace EcomSearchApi.Services;
@@ -18,9 +19,15 @@ public class SearchService(IProductSearchRepository searchRepo) : ISearchService
     }
 
     // Executes compound query combining required, optional, and excluded criteria
-    public async Task<object> AdvancedSearchAsync(string? query, string? category, string? excludeBrand)
+    public async Task<object> AdvancedSearchAsync(AdvancedSearchRequest request)
     {
-        return await searchRepo.AdvancedSearchAsync(query, category, excludeBrand);
+        return await searchRepo.AdvancedSearchAsync(request);
+    }
+
+    // Executes dynamic multi-condition search
+    public async Task<object> DynamicSearchAsync(DynamicSearchRequest request)
+    {
+        return await searchRepo.DynamicSearchAsync(request);
     }
 
     // Provides prefix-based suggestions using autocomplete Edge N-Gram analyzer

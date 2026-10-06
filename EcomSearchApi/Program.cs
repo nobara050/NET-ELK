@@ -31,6 +31,17 @@ builder.Services.AddScoped<ISearchService, SearchService>();
 builder.Services.AddScoped<IResetService, ResetService>();
 builder.Services.AddScoped<IDiagnosticsService, DiagnosticsService>();
 
+// Configure CORS for React frontend
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", policy =>
+    {
+        policy.WithOrigins("http://localhost:3000", "http://127.0.0.1:3000")
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+});
+
 // Configure controllers and Swagger OpenAPI documentation
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -67,6 +78,7 @@ app.UseSwaggerUI(c =>
 });
 
 app.UseHttpsRedirection();
+app.UseCors("AllowFrontend");
 app.UseAuthorization();
 app.MapControllers();
 

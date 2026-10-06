@@ -107,32 +107,46 @@ public class ProductSearchRepository(
     // Executes structured filtering by category, brand, and numeric price range
     public async Task<object> FilterSearchAsync(string? category, string? brand, decimal? minPrice, decimal? maxPrice)
     {
+        var hasFilters = !string.IsNullOrWhiteSpace(category)
+                      || !string.IsNullOrWhiteSpace(brand)
+                      || minPrice.HasValue
+                      || maxPrice.HasValue;
+
         var response = await es.SearchAsync<Product>(s => s
             .Index(_indexName)
-            .Query(q => q
-                .Bool(b => b
-                    .Filter(f =>
-                    {
-                        if (!string.IsNullOrWhiteSpace(category))
-                            f.Term(t => t.Field(p => p.Category).Value(category));
-
-                        if (!string.IsNullOrWhiteSpace(brand))
-                            f.Term(t => t.Field(p => p.Brand).Value(brand));
-
-                        if (minPrice.HasValue || maxPrice.HasValue)
+            .Query(q =>
+            {
+                if (!hasFilters)
+                {
+                    q.MatchAll();
+                    q.MatchAll(m => { });
+                }
+                else
+                {
+                    q.Bool(b => b
+                        .Filter(f =>
                         {
-                            f.Range(r => r
-                                .NumberRange(nr =>
-                                {
-                                    nr.Field(p => p.Price);
-                                    if (minPrice.HasValue) nr.Gte((double)minPrice.Value);
-                                    if (maxPrice.HasValue) nr.Lte((double)maxPrice.Value);
-                                })
-                            );
-                        }
-                    })
-                )
-            )
+                            if (!string.IsNullOrWhiteSpace(category))
+                                f.Term(t => t.Field(p => p.Category).Value(category));
+
+                            if (!string.IsNullOrWhiteSpace(brand))
+                                f.Term(t => t.Field(p => p.Brand).Value(brand));
+
+                            if (minPrice.HasValue || maxPrice.HasValue)
+                            {
+                                f.Range(r => r
+                                    .NumberRange(nr =>
+                                    {
+                                        nr.Field(p => p.Price);
+                                        if (minPrice.HasValue) nr.Gte((double)minPrice.Value);
+                                        if (maxPrice.HasValue) nr.Lte((double)maxPrice.Value);
+                                    })
+                                );
+                            }
+                        })
+                    );
+                }
+            })
         );
 
         return new
@@ -143,24 +157,150 @@ public class ProductSearchRepository(
         };
     }
 
-    // Executes multi-clause boolean search with positive and negative filters
-    public async Task<object> AdvancedSearchAsync(string? query, string? category, string? excludeBrand)
+    // Executes multi-clause boolean search with flexible must, filter, should, and must_not conditions
+    public async Task<object> AdvancedSearchAsync(AdvancedSearchRequest req)
     {
         var response = await es.SearchAsync<Product>(s => s
             .Index(_indexName)
             .Query(q => q
                 .Bool(b =>
                 {
-                    if (!string.IsNullOrWhiteSpace(query))
-                        b.Must(m => m.MultiMatch(mm => mm.Query(query).Fields(new[] { "name^2", "description" })));
+                    // MUST clauses (AND - required, affects score)
+                    if (!string.IsNullOrWhiteSpace(req.MustQuery))
+                        b.Must(m => m.MultiMatch(mm => mm.Query(req.MustQuery).Fields(new[] { "name^2", "description" })));
 
-                    if (!string.IsNullOrWhiteSpace(category))
-                        b.Filter(f => f.Term(t => t.Field(p => p.Category).Value(category)));
+                    if (!string.IsNullOrWhiteSpace(req.MustBrand))
+                        b.Must(m => m.Term(t => t.Field(p => p.Brand).Value(req.MustBrand)));
 
-                    b.Should(sh => sh.Term(t => t.Field(p => p.Tags).Value("premium")));
+                    // FILTER clauses (Exact filters - cached, no score impact)
+                    if (!string.IsNullOrWhiteSpace(req.FilterCategory))
+                        b.Filter(f => f.Term(t => t.Field(p => p.Category).Value(req.FilterCategory)));
 
-                    if (!string.IsNullOrWhiteSpace(excludeBrand))
-                        b.MustNot(mn => mn.Term(t => t.Field(p => p.Brand).Value(excludeBrand)));
+                    if (req.MinPrice.HasValue || req.MaxPrice.HasValue)
+                    {
+                        b.Filter(f => f.Range(r => r
+                            .NumberRange(nr =>
+                            {
+                                nr.Field(p => p.Price);
+                                if (req.MinPrice.HasValue) nr.Gte((double)req.MinPrice.Value);
+                                if (req.MaxPrice.HasValue) nr.Lte((double)req.MaxPrice.Value);
+                            })
+                        ));
+                    }
+
+                    // SHOULD clauses (OR / Boost - optional, increases score)
+                    if (!string.IsNullOrWhiteSpace(req.ShouldTag))
+                        b.Should(sh => sh.Term(t => t.Field(p => p.Tags).Value(req.ShouldTag)));
+
+                    if (!string.IsNullOrWhiteSpace(req.ShouldBrand))
+                        b.Should(sh => sh.Term(t => t.Field(p => p.Brand).Value(req.ShouldBrand)));
+
+                    // MUST_NOT clauses (NOT - exclusions)
+                    if (!string.IsNullOrWhiteSpace(req.ExcludeBrand))
+                        b.MustNot(mn => mn.Term(t => t.Field(p => p.Brand).Value(req.ExcludeBrand)));
+
+                    if (!string.IsNullOrWhiteSpace(req.ExcludeTag))
+                        b.MustNot(mn => mn.Term(t => t.Field(p => p.Tags).Value(req.ExcludeTag)));
+                })
+            )
+        );
+
+        return new
+        {
+            total = response.Total,
+            tookMs = response.Took,
+            results = response.Hits.Select(hit => new
+            {
+                score = hit.Score,
+                product = hit.Source
+            })
+        };
+    }
+
+    // Executes dynamic multi-condition search based on user-configured clauses and fields
+    public async Task<object> DynamicSearchAsync(DynamicSearchRequest request)
+    {
+        var response = await es.SearchAsync<Product>(s => s
+            .Index(_indexName)
+            .Size(request.Size > 0 ? request.Size : 10)
+            .Query(q => q
+                .Bool(b =>
+                {
+                    var mustQueries = new List<Query>();
+                    var filterQueries = new List<Query>();
+                    var shouldQueries = new List<Query>();
+                    var mustNotQueries = new List<Query>();
+
+                    foreach (var cond in request.Conditions)
+                    {
+                        if (string.IsNullOrWhiteSpace(cond.Value)) continue;
+
+                        Query queryClause;
+                        var field = cond.Field?.ToLowerInvariant();
+                        var val = cond.Value.Trim();
+
+                        if (field == "minprice" && decimal.TryParse(val, out var min))
+                        {
+                            queryClause = new NumberRangeQuery(new Field("price")) { Gte = (double)min };
+                        }
+                        else if (field == "maxprice" && decimal.TryParse(val, out var max))
+                        {
+                            queryClause = new NumberRangeQuery(new Field("price")) { Lte = (double)max };
+                        }
+                        else if (field == "name")
+                        {
+                            queryClause = new MatchQuery(new Field("name")) { Query = val };
+                        }
+                        else if (field == "description")
+                        {
+                            queryClause = new MatchQuery(new Field("description")) { Query = val };
+                        }
+                        else if (field == "category")
+                        {
+                            queryClause = new TermQuery(new Field("category")) { Value = val };
+                        }
+                        else if (field == "brand")
+                        {
+                            queryClause = new TermQuery(new Field("brand")) { Value = val };
+                        }
+                        else if (field == "tags")
+                        {
+                            queryClause = new TermQuery(new Field("tags")) { Value = val };
+                        }
+                        else
+                        {
+                            queryClause = new MultiMatchQuery { Query = val, Fields = new[] { "name^2", "description" } };
+                        }
+
+                        var clause = cond.Clause?.ToLowerInvariant();
+                        if (clause == "filter")
+                        {
+                            filterQueries.Add(queryClause);
+                        }
+                        else if (clause == "should")
+                        {
+                            shouldQueries.Add(queryClause);
+                        }
+                        else if (clause == "must_not" || clause == "mustnot")
+                        {
+                            mustNotQueries.Add(queryClause);
+                        }
+                        else
+                        {
+                            mustQueries.Add(queryClause);
+                        }
+                    }
+
+                    if (mustQueries.Count > 0) b.Must(mustQueries.ToArray());
+                    if (filterQueries.Count > 0) b.Filter(filterQueries.ToArray());
+                    if (shouldQueries.Count > 0) b.Should(shouldQueries.ToArray());
+                    if (mustNotQueries.Count > 0) b.MustNot(mustNotQueries.ToArray());
+
+                    if (mustQueries.Count == 0 && filterQueries.Count == 0 && shouldQueries.Count == 0 && mustNotQueries.Count == 0)
+                    {
+                        b.Must(new MatchAllQuery());
+                        b.Must(m => m.MatchAll(ma => { }));
+                    }
                 })
             )
         );

@@ -1,3 +1,4 @@
+using EcomSearchApi.Models;
 using EcomSearchApi.Services;
 using Microsoft.AspNetCore.Mvc;
 
@@ -39,13 +40,13 @@ public class SearchController(ISearchService searchService) : ControllerBase
         }
     }
 
-    // Advanced search combining must, filter, should, and must_not clauses
-    [HttpGet("advanced")]
-    public async Task<IActionResult> Advanced([FromQuery] string? q, [FromQuery] string? category, [FromQuery] string? excludeBrand)
+    // Dynamic multi-clause search allowing flexible rows of conditions
+    [HttpPost("dynamic")]
+    public async Task<IActionResult> Dynamic([FromBody] DynamicSearchRequest request)
     {
         try
         {
-            var result = await searchService.AdvancedSearchAsync(q, category, excludeBrand);
+            var result = await searchService.DynamicSearchAsync(request);
             return Ok(result);
         }
         catch (Exception ex)
