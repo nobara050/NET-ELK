@@ -1,21 +1,15 @@
 namespace EcomSearchApi.Services;
 
-public class DiagnosticsService : IDiagnosticsService
+// Diagnostics service simulating application errors and monitoring events
+public class DiagnosticsService(ILogger<DiagnosticsService> logger) : IDiagnosticsService
 {
-    private readonly ILogger<DiagnosticsService> _logger;
-
-    public DiagnosticsService(ILogger<DiagnosticsService> logger)
-    {
-        _logger = logger;
-    }
-
+    // Simulates a business level error and logs details for ELK tracking
     public object TriggerBusinessError(string? message, string? orderId)
     {
         var errMessage = message ?? "Payment gateway timeout while processing transaction.";
         var code = orderId ?? Guid.NewGuid().ToString("N")[..8].ToUpper();
 
-        // Write Error log via Serilog -> Logstash (TCP :5000) -> Elasticsearch
-        _logger.LogError(
+        logger.LogError(
             "CRITICAL_BUSINESS_ERROR: {ErrorMessage} | OrderId: {OrderId} | Server: {MachineName}",
             errMessage,
             code,
@@ -26,12 +20,13 @@ public class DiagnosticsService : IDiagnosticsService
         {
             success = true,
             level = "Error",
-            message = "Đã bắn log Error thành công vào hệ thống ELK!",
+            message = "Business error log dispatched to ELK stack successfully.",
             orderId = code,
             timestamp = DateTime.UtcNow
         };
     }
 
+    // Simulates an unhandled service exception with stack trace logging
     public void SimulateUnhandledException(string? serviceName)
     {
         var targetService = serviceName ?? "InventorySyncService";
@@ -42,7 +37,7 @@ public class DiagnosticsService : IDiagnosticsService
         }
         catch (Exception ex)
         {
-            _logger.LogError(
+            logger.LogError(
                 ex,
                 "UNHANDLED_EXCEPTION in {ServiceName}: {ExceptionMessage}",
                 targetService,
@@ -52,12 +47,13 @@ public class DiagnosticsService : IDiagnosticsService
         }
     }
 
+    // Generates a burst of error logs to test alert ingestion rates
     public object TriggerBurstErrors(int count)
     {
         var total = count > 0 ? count : 5;
         for (int i = 1; i <= total; i++)
         {
-            _logger.LogError(
+            logger.LogError(
                 "BURST_ERROR #{Index}/{Total}: High error rate detected in BackgroundWorker at {Time}",
                 i,
                 total,
@@ -65,6 +61,6 @@ public class DiagnosticsService : IDiagnosticsService
             );
         }
 
-        return new { message = $"Đã bắn thành công {total} log Error liên tiếp!" };
+        return new { message = $"Successfully emitted {total} error logs." };
     }
 }

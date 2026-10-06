@@ -1,0 +1,101 @@
+Theo dõi cluster
+GET /_cluster/health
+
+Kiểm tra tài nguyên
+GET /_cat/nodes?v&h=name,ip,node.role,master,heap.percent,ram.percent,cpu,uptime
+
+Theo dõi index
+GET /_cat/indices?v&s=index
+
+Bỏ qua index hệ thống
+GET /_cat/indices/*,-.*?v&s=index
+
+Theo dõi shard
+GET /_cat/shards?v
+
+=================================
+
+Analyzer không có Stemming
+POST /_analyze
+{
+  "analyzer": "standard",
+  "text": "Laptop Gaming ASUS ROG Strix G16 - Siêu Mạnh Mẽ!"
+}
+
+Analyzer có Stemming
+POST /_analyze
+{
+  "analyzer": "english",
+  "text": "Developers are developing high performance searches with Elasticsearch"
+}
+
+Analyzer theo keyword
+POST /_analyze
+{
+  "tokenizer": "keyword",
+  "text": "Laptop & Linh Kiện Điện Tử"
+}
+
+=================================
+Xóa index
+DELETE /products
+
+Tạo index default
+PUT /products
+
+Tự cấu hình một index
+PUT /products
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0,
+    "analysis": {
+      "filter": {
+        "edge_ngram_filter": {
+          "type": "edge_ngram",
+          "min_gram": 2,
+          "max_gram": 15
+        }
+      },
+      "analyzer": {
+        "autocomplete_analyzer": {
+          "type": "custom",
+          "tokenizer": "standard",
+          "filter": [
+            "lowercase",
+            "edge_ngram_filter"
+          ]
+        }
+      }
+    }
+  },
+  "mappings": {
+    "properties": {
+      "id": { "type": "integer" },
+      "name": {
+        "type": "text",
+        "analyzer": "standard",
+        "fields": {
+          "keyword": { "type": "keyword" },
+          "autocomplete": {
+            "type": "text",
+            "analyzer": "autocomplete_analyzer",
+            "search_analyzer": "standard"
+          }
+        }
+      },
+      "description": { "type": "text", "analyzer": "standard" },
+      "category": { "type": "keyword" },
+      "brand": { "type": "keyword" },
+      "price": { "type": "double" },
+      "stock": { "type": "integer" },
+      "rating": { "type": "double" },
+      "tags": { "type": "keyword" },
+      "is_active": { "type": "boolean" },
+      "created_at": { "type": "date" }
+    }
+  }
+}
+
+
+

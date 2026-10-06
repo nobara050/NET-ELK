@@ -1,13 +1,13 @@
 using Elastic.Clients.Elasticsearch;
-using EcomSearchApi.Data;
 using EcomSearchApi.Infrastructure;
 using EcomSearchApi.Models;
-using Microsoft.EntityFrameworkCore;
+using EcomSearchApi.Repositories;
 
 namespace EcomSearchApi.Services;
 
+// Service coordinating full database truncation and re-seeding across stores
 public class ResetService(
-    AppDbContext db, 
+    IProductRepository repo, 
     ElasticsearchClient es, 
     ElasticIndexManager indexManager, 
     IConfiguration config, 
@@ -15,28 +15,24 @@ public class ResetService(
 {
     private readonly string _indexName = config["Elasticsearch:IndexName"] ?? "products";
 
+    // Resets relational data, index mapping, and populates sample documents
     public async Task<object> ResetAllAsync()
     {
         logger.LogInformation("Starting 1-Click System Reset...");
 
-        // 1. Truncate bảng Products trong PostgreSQL
-        await db.Database.ExecuteSqlRawAsync("TRUNCATE TABLE \"Products\" RESTART IDENTITY CASCADE;");
+        await repo.TruncateAndResetAsync();
         logger.LogInformation("PostgreSQL Products table truncated.");
 
-        // 2. Tạo lại index trong Elasticsearch kèm mapping & analyzer
         await indexManager.RecreateIndexAsync();
 
-        // 3. Seed 10 sản phẩm vào PostgreSQL
         var samples = SampleData.InitialProducts;
         foreach (var p in samples)
         {
             p.Id = 0;
         }
-        await db.Products.AddRangeAsync(samples);
-        await db.SaveChangesAsync();
+        await repo.AddRangeAsync(samples);
         logger.LogInformation("Seeded {Count} products to PostgreSQL.", samples.Count);
 
-        // 4. Bulk Index 10 sản phẩm sang Elasticsearch với _id = product.Id
         var bulkResponse = await es.BulkAsync(b => b
             .Index(_indexName)
             .IndexMany(samples, (descriptor, product) => descriptor.Id(product.Id.ToString()))
@@ -53,7 +49,7 @@ public class ResetService(
         {
             status = "SUCCESS",
             message = "PostgreSQL and Elasticsearch reset and seeded successfully!",
-            postgresCount = await db.Products.CountAsync(),
+            postgresCount = await repo.CountAsync(),
             elasticsearchCount = (await es.CountAsync(c => c.Indices(_indexName))).Count
         };
     }

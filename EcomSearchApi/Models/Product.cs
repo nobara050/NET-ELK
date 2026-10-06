@@ -3,6 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EcomSearchApi.Models;
 
+// Represents a product entity stored in PostgreSQL and indexed in Elasticsearch
 [Table("Products")]
 public class Product
 {

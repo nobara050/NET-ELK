@@ -4,6 +4,7 @@ using EcomSearchApi.Models;
 
 namespace EcomSearchApi.Infrastructure;
 
+// Manages Elasticsearch index lifecycle, settings, analyzers, and type mappings
 public class ElasticIndexManager(
     ElasticsearchClient client, 
     IConfiguration configuration, 
@@ -11,6 +12,7 @@ public class ElasticIndexManager(
 {
     private readonly string _indexName = configuration["Elasticsearch:IndexName"] ?? "products";
 
+    // Recreates index with Edge N-Gram custom analyzer and field mappings
     public async Task RecreateIndexAsync()
     {
         var existsResponse = await client.Indices.ExistsAsync(_indexName);

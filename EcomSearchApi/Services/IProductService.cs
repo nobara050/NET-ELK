@@ -2,6 +2,7 @@ using EcomSearchApi.Models;
 
 namespace EcomSearchApi.Services;
 
+// Product service contract for business workflows
 public interface IProductService
 {
     Task<List<Product>> GetAllAsync();

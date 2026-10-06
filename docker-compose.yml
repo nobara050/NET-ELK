@@ -1,4 +1,5 @@
 name: ojt_elk_monitoring
+
 services:
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.17.0
@@ -13,7 +14,6 @@ services:
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
     ports:
       - "9200:9200"
-      - "9300:9300"
     volumes:
       - es_data:/usr/share/elasticsearch/data
     networks:
@@ -33,7 +33,6 @@ services:
       - ./logstash/pipeline/logstash.conf:/usr/share/logstash/pipeline/logstash.conf:ro
     ports:
       - "5000:5000"
-      - "5044:5044"
     depends_on:
       elasticsearch:
         condition: service_healthy
@@ -57,7 +56,7 @@ services:
 
 volumes:
   es_data:
-    driver: local
+    name: ojt_elasticsearch_es_data
 
 networks:
   elk-net:

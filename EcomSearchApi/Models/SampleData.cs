@@ -1,5 +1,6 @@
 namespace EcomSearchApi.Models;
 
+// Provides initial seed product data for database and index reset
 public static class SampleData
 {
     public static readonly List<Product> InitialProducts =

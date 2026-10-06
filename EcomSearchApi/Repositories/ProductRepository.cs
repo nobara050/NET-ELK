@@ -4,18 +4,22 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EcomSearchApi.Repositories;
 
+// Repository implementation for PostgreSQL data access
 public class ProductRepository(AppDbContext db) : IProductRepository
 {
+    // Fetches all products ordered by creation date descending
     public async Task<List<Product>> GetAllAsync()
     {
         return await db.Products.AsNoTracking().OrderByDescending(p => p.CreatedAt).ToListAsync();
     }
 
+    // Fetches a single product by primary key
     public async Task<Product?> GetByIdAsync(int id)
     {
         return await db.Products.FindAsync(id);
     }
 
+    // Adds a new product entity
     public async Task<Product> AddAsync(Product product)
     {
         db.Products.Add(product);
@@ -23,6 +27,7 @@ public class ProductRepository(AppDbContext db) : IProductRepository
         return product;
     }
 
+    // Updates properties of an existing product entity
     public async Task<Product?> UpdateAsync(Product product)
     {
         var existing = await db.Products.FindAsync(product.Id);
@@ -40,6 +45,7 @@ public class ProductRepository(AppDbContext db) : IProductRepository
         return existing;
     }
 
+    // Deletes a product entity by primary key
     public async Task<bool> DeleteAsync(int id)
     {
         var existing = await db.Products.FindAsync(id);
@@ -50,17 +56,20 @@ public class ProductRepository(AppDbContext db) : IProductRepository
         return true;
     }
 
+    // Truncates table and restarts auto-incrementing identity sequence
     public async Task TruncateAndResetAsync()
     {
         await db.Database.ExecuteSqlRawAsync("TRUNCATE TABLE \"Products\" RESTART IDENTITY CASCADE;");
     }
 
+    // Inserts a collection of products in batch
     public async Task AddRangeAsync(IEnumerable<Product> products)
     {
         await db.Products.AddRangeAsync(products);
         await db.SaveChangesAsync();
     }
 
+    // Counts total number of product records
     public async Task<int> CountAsync()
     {
         return await db.Products.CountAsync();

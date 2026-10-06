@@ -2,6 +2,7 @@ using EcomSearchApi.Models;
 
 namespace EcomSearchApi.Repositories;
 
+// Repository contract for relational product database operations
 public interface IProductRepository
 {
     Task<List<Product>> GetAllAsync();

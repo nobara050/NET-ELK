@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace EcomSearchApi.Controllers;
 
+// Controller for diagnostic and log generation testing
 [ApiController]
 [Route("api/[controller]")]
 public class DiagnosticsController : ControllerBase
@@ -14,9 +15,7 @@ public class DiagnosticsController : ControllerBase
         _diagnosticsService = diagnosticsService;
     }
 
-    /// <summary>
-    /// Bắn log Error giả lập lỗi nghiệp vụ (Payment/Checkout)
-    /// </summary>
+    // Triggers simulated business errors for ELK logging
     [HttpPost("trigger-error")]
     public IActionResult TriggerBusinessError([FromQuery] string? message, [FromQuery] string? orderId)
     {
@@ -24,9 +23,7 @@ public class DiagnosticsController : ControllerBase
         return Ok(result);
     }
 
-    /// <summary>
-    /// Giả lập Exception chưa được bắt (Unhandled Exception / NullReference)
-    /// </summary>
+    // Simulates an unhandled exception for error monitoring
     [HttpPost("simulate-exception")]
     public IActionResult SimulateException([FromQuery] string? serviceName)
     {
@@ -47,9 +44,7 @@ public class DiagnosticsController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Bắn nhiều log Error liên tục để test ngưỡng threshold lớn
-    /// </summary>
+    // Triggers multiple consecutive error logs for rate testing
     [HttpPost("trigger-burst-errors")]
     public IActionResult TriggerBurstErrors([FromQuery] int count = 5)
     {

@@ -1,5 +1,6 @@
 namespace EcomSearchApi.Services;
 
+// Search service contract for Elasticsearch queries and statistics
 public interface ISearchService
 {
     Task<object> FullTextSearchAsync(string query, int size = 10);
